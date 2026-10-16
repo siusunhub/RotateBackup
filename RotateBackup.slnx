@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/RotateBackup.Cli/RotateBackup.Cli.csproj" />
     <Project Path="src/RotateBackup.Core/RotateBackup.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">

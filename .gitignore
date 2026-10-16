@@ -7,4 +7,5 @@
 *.userosscache
 *.sln.docstates
 TestResults/
+[Pp]ublish/
 .superpowers/

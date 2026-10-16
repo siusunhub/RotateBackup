@@ -1,0 +1,161 @@
+﻿{
+  "Version": "2.0",
+  "BackupSets": [
+    {
+      "Id": "dMj7nYGP5hYZqfNo",
+      "Command": "testte",
+      "Remark": "test",
+      "Disabled": false,
+      "IsDirectory": true,
+      "SourcePath": "",
+      "KeepSource": false,
+      "KeepFirstDir": false,
+      "PreCommand": "",
+      "PostCommand": "",
+      "Slots": [
+        {
+          "Index": 1,
+          "Path": "test1",
+          "Keep": false
+        },
+        {
+          "Index": 2,
+          "Path": "c:\\gfasdgsda",
+          "Keep": false
+        },
+        {
+          "Index": 3,
+          "Path": "c:\\gasdgsagsd",
+          "Keep": false
+        },
+        {
+          "Index": 4,
+          "Path": "cL:\\gasgsdgs",
+          "Keep": false
+        },
+        {
+          "Index": 5,
+          "Path": "c:\\gasdgasd",
+          "Keep": false
+        }
+      ]
+    },
+    {
+      "Id": "oNsNGRprLmtlhgcD",
+      "Command": "d",
+      "Remark": "gadsgsd",
+      "Disabled": false,
+      "IsDirectory": true,
+      "SourcePath": "",
+      "KeepSource": false,
+      "KeepFirstDir": false,
+      "PreCommand": "",
+      "PostCommand": "",
+      "Slots": [
+        {
+          "Index": 1,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 2,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 3,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 4,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 5,
+          "Path": "",
+          "Keep": false
+        }
+      ]
+    },
+    {
+      "Id": "rWTdOMlAusHlz0GW",
+      "Command": "test",
+      "Remark": "test",
+      "Disabled": false,
+      "IsDirectory": true,
+      "SourcePath": "",
+      "KeepSource": false,
+      "KeepFirstDir": false,
+      "PreCommand": "",
+      "PostCommand": "",
+      "Slots": [
+        {
+          "Index": 1,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 2,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 3,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 4,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 5,
+          "Path": "",
+          "Keep": false
+        }
+      ]
+    },
+    {
+      "Id": "v5Sz5zXSH54CQKVI",
+      "Command": "gsd",
+      "Remark": "gas",
+      "Disabled": false,
+      "IsDirectory": false,
+      "SourcePath": "",
+      "KeepSource": false,
+      "KeepFirstDir": false,
+      "PreCommand": "",
+      "PostCommand": "",
+      "Slots": [
+        {
+          "Index": 1,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 2,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 3,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 4,
+          "Path": "",
+          "Keep": false
+        },
+        {
+          "Index": 5,
+          "Path": "",
+          "Keep": false
+        }
+      ]
+    }
+  ]
+}

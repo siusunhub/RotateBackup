@@ -1,0 +1,54 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Color Palette -->
+    <Color x:Key="AppBackgroundColor">#F1F5F9</Color>
+    <Color x:Key="CardBackgroundColor">#FFFFFF</Color>
+    <Color x:Key="CardSubtleColor">#F8FAFC</Color>
+    <Color x:Key="BorderColor">#CBD5E1</Color>
+    <Color x:Key="BorderLightColor">#E2E8F0</Color>
+
+    <Color x:Key="PrimaryAccentColor">#0284C7</Color>
+    <Color x:Key="PrimaryHoverColor">#0369A1</Color>
+    <Color x:Key="PrimaryPressedColor">#075985</Color>
+
+    <Color x:Key="SecondaryButtonBgColor">#F1F5F9</Color>
+    <Color x:Key="SecondaryButtonHoverColor">#E2E8F0</Color>
+    <Color x:Key="SecondaryButtonPressedColor">#CBD5E1</Color>
+
+    <Color x:Key="DangerColor">#EF4444</Color>
+    <Color x:Key="DangerHoverColor">#DC2626</Color>
+    <Color x:Key="SuccessColor">#10B981</Color>
+    <Color x:Key="SuccessHoverColor">#059669</Color>
+
+    <Color x:Key="TextPrimaryColor">#0F172A</Color>
+    <Color x:Key="TextSecondaryColor">#64748B</Color>
+    <Color x:Key="TextMutedColor">#94A3B8</Color>
+    <Color x:Key="TextInvertedColor">#FFFFFF</Color>
+
+    <!-- SolidColorBrushes -->
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="{StaticResource CardBackgroundColor}" />
+    <SolidColorBrush x:Key="CardSubtleBrush" Color="{StaticResource CardSubtleColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="BorderLightBrush" Color="{StaticResource BorderLightColor}" />
+
+    <SolidColorBrush x:Key="PrimaryAccentBrush" Color="{StaticResource PrimaryAccentColor}" />
+    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}" />
+    <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{StaticResource PrimaryPressedColor}" />
+
+    <SolidColorBrush x:Key="SecondaryButtonBgBrush" Color="{StaticResource SecondaryButtonBgColor}" />
+    <SolidColorBrush x:Key="SecondaryButtonHoverBrush" Color="{StaticResource SecondaryButtonHoverColor}" />
+    <SolidColorBrush x:Key="SecondaryButtonPressedBrush" Color="{StaticResource SecondaryButtonPressedColor}" />
+
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+    <SolidColorBrush x:Key="DangerHoverBrush" Color="{StaticResource DangerHoverColor}" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
+    <SolidColorBrush x:Key="SuccessHoverBrush" Color="{StaticResource SuccessHoverColor}" />
+
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
+    <SolidColorBrush x:Key="TextInvertedBrush" Color="{StaticResource TextInvertedColor}" />
+
+</ResourceDictionary>

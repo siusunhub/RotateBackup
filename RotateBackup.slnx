@@ -3,6 +3,7 @@
     <Project Path="src/RotateBackup.Cli/RotateBackup.Cli.csproj" />
     <Project Path="src/RotateBackup.Core/RotateBackup.Core.csproj" />
     <Project Path="src/RotateBackup.Migrator/RotateBackup.Migrator.csproj" />
+    <Project Path="src/RotateBackup.Wpf/RotateBackup.Wpf.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RotateBackup.Core.Tests/RotateBackup.Core.Tests.csproj" />

@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RotateBackup.Core\RotateBackup.Core.csproj" />
+    <ProjectReference Include="..\..\src\RotateBackup.Migrator\RotateBackup.Migrator.csproj" />
   </ItemGroup>
 
 </Project>

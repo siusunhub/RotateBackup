@@ -5,11 +5,11 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:RotateBackup.Wpf.ViewModels"
         mc:Ignorable="d"
-        Title="RotateBackup Manager (.NET 10)"
-        Height="780"
-        Width="1080"
+        Title="RotateBackup Manager"
+        Height="800"
+        Width="1120"
         MinHeight="650"
-        MinWidth="900"
+        MinWidth="950"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource AppBackgroundBrush}">
 
@@ -21,7 +21,7 @@
         <Grid.RowDefinitions>
             <!-- Header Bar -->
             <RowDefinition Height="Auto" />
-            <!-- Main Content Area -->
+            <!-- Main Content Area: Left Sidebar + Right Workspace -->
             <RowDefinition Height="*" />
             <!-- Footer Status Bar -->
             <RowDefinition Height="Auto" />
@@ -32,7 +32,7 @@
                 Background="{StaticResource CardBackgroundBrush}"
                 BorderBrush="{StaticResource BorderLightBrush}"
                 BorderThickness="0,0,0,1"
-                Padding="24,14">
+                Padding="24,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -50,15 +50,11 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center" />
                     </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="RotateBackup Manager"
-                                   FontSize="16"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource TextPrimaryBrush}" />
-                        <TextBlock Text="Next-Gen Rotating Backup Configurator &amp; Engine (.NET 10)"
-                                   FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}" />
-                    </StackPanel>
+                    <TextBlock Text="RotateBackup Manager"
+                               FontSize="17"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
                 </StackPanel>
 
                 <!-- Top Header Actions -->
@@ -66,7 +62,7 @@
                     <Button Content="+ New Backup Set"
                             Style="{StaticResource RoundedPrimaryButton}"
                             Command="{Binding NewBackupSetCommand}"
-                            Margin="0,0,10,0" />
+                            Margin="0,0,12,0" />
                     <Button Content="💾 Save All Changes"
                             Style="{StaticResource RoundedSuccessButton}"
                             Command="{Binding SaveAllCommand}" />
@@ -74,449 +70,537 @@
             </Grid>
         </Border>
 
-        <!-- Main Tabbed Interface -->
-        <TabControl Grid.Row="1"
-                    Style="{StaticResource ModernTabControl}"
-                    Margin="24,12,24,12">
+        <!-- Main Body: Left Sidebar (Sets List) + Right Tabs (Active Set Details) -->
+        <Grid Grid.Row="1" Margin="20,16,20,12">
+            <Grid.ColumnDefinitions>
+                <!-- Left Sidebar: Backup Sets List -->
+                <ColumnDefinition Width="310" />
+                <ColumnDefinition Width="16" />
+                <!-- Right Area: Active Set Header + Tabs -->
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- TAB 1: Backup Sets -->
-            <TabItem Header="📋 Backup Sets">
-                <Grid Margin="0,12,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="340" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+            <!-- LEFT SIDEBAR: Persistent List of Backup Sets -->
+            <Border Grid.Column="0" Style="{StaticResource ModernCard}" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-                    <!-- Left: Backup Sets List -->
-                    <Border Grid.Column="0" Style="{StaticResource ModernCard}" Padding="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+                    <!-- Sidebar Header -->
+                    <Grid Margin="4,2,4,10">
+                        <TextBlock Text="Backup Sets"
+                                   FontWeight="Bold"
+                                   FontSize="14"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding BackupSets.Count, StringFormat='({0})'}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
 
-                            <TextBlock Text="Configured Backup Tasks"
-                                       FontWeight="SemiBold"
-                                       FontSize="14"
-                                       Margin="4,4,4,10" />
-
-                            <ListBox Grid.Row="1"
-                                     ItemsSource="{Binding BackupSets}"
-                                     SelectedItem="{Binding SelectedBackupSet, Mode=TwoWay}"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding" Value="10,8" />
-                                        <Setter Property="Margin" Value="0,2" />
-                                        <Setter Property="Cursor" Value="Hand" />
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border x:Name="itemBorder"
-                                                            Background="Transparent"
-                                                            BorderThickness="1"
-                                                            BorderBrush="Transparent"
-                                                            CornerRadius="8"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter />
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="itemBorder" Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
-                                                        </Trigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter TargetName="itemBorder" Property="Background" Value="#E0F2FE" />
-                                                            <Setter TargetName="itemBorder" Property="BorderBrush" Value="{StaticResource PrimaryAccentBrush}" />
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding Command}"
-                                                           FontWeight="Bold"
-                                                           FontSize="13"
-                                                           Foreground="{StaticResource TextPrimaryBrush}" />
-                                                <TextBlock Text="{Binding Remark}"
-                                                           FontSize="11"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                                           TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-                                            <Border Grid.Column="1"
-                                                    Background="{StaticResource CardSubtleBrush}"
-                                                    BorderBrush="{StaticResource BorderLightBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="12"
-                                                    Padding="8,2"
-                                                    VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding TypeDisplayName}"
-                                                           FontSize="10"
-                                                           FontWeight="Medium"
-                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                    <!-- List of Sets -->
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding BackupSets}"
+                             SelectedItem="{Binding SelectedBackupSet, Mode=TwoWay}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="10,8" />
+                                <Setter Property="Margin" Value="0,3" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="itemBorder"
+                                                    Background="Transparent"
+                                                    BorderThickness="1.5"
+                                                    BorderBrush="Transparent"
+                                                    CornerRadius="8"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter />
                                             </Border>
-                                        </Grid>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
-                    </Border>
-
-                    <!-- Right: Selected Set Settings -->
-                    <Border Grid.Column="2" Style="{StaticResource ModernCard}" Padding="20">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel DataContext="{Binding SelectedBackupSet}">
-                                <TextBlock Text="General Configuration"
-                                           FontSize="16"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,16" />
-
-                                <!-- Command Alias -->
-                                <TextBlock Text="Command Name (Unique CLI identifier):"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,6" />
-                                <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource RoundedTextBox}"
-                                         Margin="0,0,0,16" />
-
-                                <!-- Remark -->
-                                <TextBlock Text="Remark / Description:"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,6" />
-                                <TextBox Text="{Binding Remark, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource RoundedTextBox}"
-                                         Margin="0,0,0,16" />
-
-                                <!-- Type: Directory or File -->
-                                <TextBlock Text="Rotation Type:"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,8" />
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                                    <RadioButton Content="📁 Directory Rotation"
-                                                 IsChecked="{Binding IsDirectory, Mode=TwoWay}"
-                                                 GroupName="RotationType"
-                                                 Margin="0,0,24,0"
-                                                 FontWeight="Medium" />
-                                    <RadioButton Content="📄 Single File Rotation"
-                                                 IsChecked="{Binding IsFile, Mode=TwoWay}"
-                                                 GroupName="RotationType"
-                                                 FontWeight="Medium" />
-                                </StackPanel>
-
-                                <!-- Status: Active / Disabled -->
-                                <Border Background="{StaticResource CardSubtleBrush}"
-                                        BorderBrush="{StaticResource BorderLightBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="8"
-                                        Padding="14"
-                                        Margin="0,0,0,24">
-                                    <CheckBox Content="Disable this backup set (Skip during CLI or batch execution)"
-                                              IsChecked="{Binding Disabled, Mode=TwoWay}"
-                                              Style="{StaticResource ModernCheckBox}" />
-                                </Border>
-
-                                <!-- Delete Action -->
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <Button Content="🗑 Delete Backup Set"
-                                            Style="{StaticResource RoundedDangerButton}"
-                                            Command="{Binding DataContext.DeleteBackupSetCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Border>
-                </Grid>
-            </TabItem>
-
-            <!-- TAB 2: Rotation Paths -->
-            <TabItem Header="📁 Rotation Paths">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
-                    <StackPanel DataContext="{Binding SelectedBackupSet}">
-
-                        <!-- Source Path Card -->
-                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16">
-                            <StackPanel>
-                                <TextBlock Text="Source Target"
-                                           FontSize="15"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,12" />
-
-                                <TextBlock Text="Source Folder / File Path to be backed up:"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,6" />
-                                <Grid Margin="0,0,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBox Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource RoundedTextBox}" />
-                                    <Button Grid.Column="1"
-                                            Content="Browse..."
-                                            Style="{StaticResource RoundedCompactButton}"
-                                            Click="BrowseSourcePath_Click"
-                                            Margin="8,0,0,0" />
-                                </Grid>
-
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox Content="Keep Source (Do not delete/move source after copying to slot 1)"
-                                              IsChecked="{Binding KeepSource, Mode=TwoWay}"
-                                              Style="{StaticResource ModernCheckBox}"
-                                              Margin="0,0,24,0" />
-                                    <CheckBox Content="Keep First Directory"
-                                              IsChecked="{Binding KeepFirstDir, Mode=TwoWay}"
-                                              Style="{StaticResource ModernCheckBox}" />
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Generator Toolbar Card -->
-                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16" Background="{StaticResource CardSubtleBrush}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Text="Path Auto-Fill &amp; Folder Management Utility"
-                                           FontWeight="Bold"
-                                           FontSize="13"
-                                           Margin="0,0,0,10" />
-
-                                <Grid Grid.Row="1">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <!-- Reference Path Input -->
-                                    <TextBox Text="{Binding DataContext.ReferencePath, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource RoundedTextBox}"
-                                             ToolTip="Base path, e.g. D:\Backups\Daily"
-                                             VerticalAlignment="Center" />
-
-                                    <!-- Slot Count -->
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
-                                        <TextBlock Text="Rolls:" VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
-                                        <ComboBox SelectedIndex="{Binding DataContext.SlotCountSelection, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
-                                                  Width="65"
-                                                  VerticalAlignment="Center">
-                                            <ComboBoxItem Content="1" />
-                                            <ComboBoxItem Content="2" />
-                                            <ComboBoxItem Content="3" />
-                                            <ComboBoxItem Content="4" />
-                                            <ComboBoxItem Content="5" />
-                                            <ComboBoxItem Content="6" />
-                                            <ComboBoxItem Content="7" />
-                                            <ComboBoxItem Content="8" />
-                                            <ComboBoxItem Content="9" />
-                                            <ComboBoxItem Content="10" />
-                                            <ComboBoxItem Content="11" />
-                                            <ComboBoxItem Content="12" />
-                                            <ComboBoxItem Content="13" />
-                                            <ComboBoxItem Content="14" />
-                                        </ComboBox>
-                                    </StackPanel>
-
-                                    <!-- Auto Fill Button -->
-                                    <Button Grid.Column="2"
-                                            Content="⚡ Auto-Fill 1..N"
-                                            Style="{StaticResource RoundedPrimaryButton}"
-                                            Command="{Binding DataContext.AutoFillSlotsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            Margin="0,0,8,0" />
-
-                                    <!-- Create Missing Folders Button -->
-                                    <Button Grid.Column="3"
-                                            Content="📁 Create Folders"
-                                            Style="{StaticResource RoundedSecondaryButton}"
-                                            Command="{Binding DataContext.CreateMissingFoldersCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                </Grid>
-                            </Grid>
-                        </Border>
-
-                        <!-- Rotation Slots List -->
-                        <Border Style="{StaticResource ModernCard}">
-                            <StackPanel>
-                                <TextBlock Text="Destination Rotation Slots"
-                                           FontSize="15"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,12" />
-
-                                <ItemsControl ItemsSource="{Binding Slots}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid Margin="0,4">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="80" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- Slot Badge -->
-                                                <Border Background="#E0F2FE"
-                                                        CornerRadius="6"
-                                                        Padding="8,4"
-                                                        HorizontalAlignment="Left"
-                                                        VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Index, StringFormat='Slot #{0}'}"
-                                                               FontWeight="Bold"
-                                                               FontSize="12"
-                                                               Foreground="{StaticResource PrimaryAccentBrush}" />
-                                                </Border>
-
-                                                <!-- Slot Path -->
-                                                <TextBox Grid.Column="1"
-                                                         Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}"
-                                                         Style="{StaticResource RoundedTextBox}"
-                                                         Margin="8,0" />
-
-                                                <!-- Browse Button -->
-                                                <Button Grid.Column="2"
-                                                        Content="Browse..."
-                                                        Style="{StaticResource RoundedCompactButton}"
-                                                        Click="BrowseSlotPath_Click"
-                                                        Margin="0,0,12,0" />
-
-                                                <!-- Keep Checkbox -->
-                                                <CheckBox Grid.Column="3"
-                                                          Content="Keep"
-                                                          IsChecked="{Binding Keep, Mode=TwoWay}"
-                                                          Style="{StaticResource ModernCheckBox}"
-                                                          ToolTip="Preserve existing contents instead of purging when rolled" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- TAB 3: Scripts & Advanced -->
-            <TabItem Header="⚙ Scripts &amp; Execution">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
-                    <StackPanel DataContext="{Binding SelectedBackupSet}">
-
-                        <!-- Pre & Post Commands Card -->
-                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16">
-                            <StackPanel>
-                                <TextBlock Text="Script Hooks"
-                                           FontSize="15"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,12" />
-
-                                <!-- Pre Command -->
-                                <TextBlock Text="Pre-Rotation Command (Executes before backup starts. Non-zero exit code halts rotation):"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,6" />
-                                <TextBox Text="{Binding PreCommand, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource RoundedTextBox}"
-                                         Margin="0,0,0,16" />
-
-                                <!-- Post Command -->
-                                <TextBlock Text="Post-Rotation Command (Executes after rotation finishes successfully):"
-                                           FontWeight="Medium"
-                                           Margin="0,0,0,6" />
-                                <TextBox Text="{Binding PostCommand, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource RoundedTextBox}" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Task Scheduler Command Card -->
-                        <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16" Background="{StaticResource CardSubtleBrush}">
-                            <StackPanel>
-                                <TextBlock Text="Windows Task Scheduler Integration"
-                                           FontSize="14"
-                                           FontWeight="Bold"
-                                           Margin="0,0,0,8" />
-                                <TextBlock Text="Use this command line to schedule automated execution via Windows Task Scheduler or batch script:"
-                                           FontSize="12"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Margin="0,0,0,8" />
-
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="itemBorder" Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="itemBorder" Property="Background" Value="#E0F2FE" />
+                                                    <Setter TargetName="itemBorder" Property="BorderBrush" Value="{StaticResource PrimaryAccentBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Text="{Binding CliCommandSnippet, Mode=OneWay}"
-                                             Style="{StaticResource RoundedTextBox}"
-                                             IsReadOnly="True"
-                                             Background="#F8FAFC" />
-                                    <Button Grid.Column="1"
-                                            Content="📋 Copy Command"
-                                            Style="{StaticResource RoundedPrimaryButton}"
-                                            Command="{Binding DataContext.CopyCliSnippetCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            Margin="8,0,0,0" />
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Command}"
+                                                   FontWeight="Bold"
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding Remark}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <Border Background="{StaticResource CardSubtleBrush}"
+                                                BorderBrush="{StaticResource BorderLightBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="6,2"
+                                                Margin="0,0,0,2">
+                                            <TextBlock Text="{Binding TypeDisplayName}"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </Border>
+                                        <TextBlock Text="Disabled"
+                                                   FontSize="9"
+                                                   FontWeight="Bold"
+                                                   Foreground="{StaticResource DangerBrush}"
+                                                   HorizontalAlignment="Right"
+                                                   Visibility="{Binding Disabled, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
                                 </Grid>
-                            </StackPanel>
-                        </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
 
-                        <!-- Test Execution & Live Log Card -->
-                        <Border Style="{StaticResource ModernCard}">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Content="▶ Test Run Backup Now"
-                                                Style="{StaticResource RoundedPrimaryButton}"
-                                                Command="{Binding DataContext.TestRunBackupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Margin="0,0,12,0" />
-                                        <Button Content="Clear Logs"
-                                                Style="{StaticResource RoundedCompactButton}"
-                                                Command="{Binding DataContext.ClearLogsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                    <!-- Delete Button for Selected Set -->
+                    <Border Grid.Row="2"
+                            BorderBrush="{StaticResource BorderLightBrush}"
+                            BorderThickness="0,1,0,0"
+                            Padding="4,10,4,2">
+                        <Button Content="🗑 Delete Selected Set"
+                                Style="{StaticResource RoundedDangerButton}"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding DeleteBackupSetCommand}" />
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- RIGHT WORKSPACE: Active Backup Set Banner + Tabbed Settings -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <!-- Active Set Banner (Always visible on all tabs!) -->
+                    <RowDefinition Height="Auto" />
+                    <!-- Tabbed Configuration Panels -->
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- ACTIVE SET BANNER -->
+                <Border Grid.Row="0"
+                        Style="{StaticResource ModernCard}"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="{StaticResource PrimaryAccentBrush}"
+                        BorderThickness="1.5"
+                        Padding="16,12"
+                        Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Active Backup Set:"
+                                       FontWeight="Medium"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <Border Background="#0284C7"
+                                    CornerRadius="6"
+                                    Padding="10,3"
+                                    Margin="0,0,10,0">
+                                <TextBlock Text="{Binding SelectedBackupSet.Command, FallbackValue='(None Selected)'}"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#FFFFFF" />
+                            </Border>
+                            <TextBlock Text="{Binding SelectedBackupSet.Remark}"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"
+                                       FontStyle="Italic" />
+                        </StackPanel>
+
+                        <!-- Type & Status Badges -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Background="{StaticResource CardSubtleBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="10,3"
+                                    Margin="0,0,8,0">
+                                <TextBlock Text="{Binding SelectedBackupSet.TypeDisplayName, StringFormat='Mode: {0}'}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- TABBED SETTINGS (For the Active Backup Set) -->
+                <TabControl Grid.Row="1"
+                            Style="{StaticResource ModernTabControl}"
+                            Margin="0">
+
+                    <!-- TAB 1: General Settings -->
+                    <TabItem Header="⚙ General Settings">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                            <Border Style="{StaticResource ModernCard}" Padding="20">
+                                <StackPanel DataContext="{Binding SelectedBackupSet}">
+                                    <TextBlock Text="Backup Set Identity"
+                                               FontSize="15"
+                                               FontWeight="Bold"
+                                               Margin="0,0,0,16" />
+
+                                    <!-- Command Alias -->
+                                    <TextBlock Text="Command Name (Used in Task Scheduler / CLI):"
+                                               FontWeight="Medium"
+                                               Margin="0,0,0,6" />
+                                    <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource RoundedTextBox}"
+                                             Margin="0,0,0,16" />
+
+                                    <!-- Remark -->
+                                    <TextBlock Text="Remark / Description:"
+                                               FontWeight="Medium"
+                                               Margin="0,0,0,6" />
+                                    <TextBox Text="{Binding Remark, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource RoundedTextBox}"
+                                             Margin="0,0,0,16" />
+
+                                    <!-- Type: Directory or File -->
+                                    <TextBlock Text="Rotation Type:"
+                                               FontWeight="Medium"
+                                               Margin="0,0,0,8" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                        <RadioButton Content="📁 Directory Rotation"
+                                                     IsChecked="{Binding IsDirectory, Mode=TwoWay}"
+                                                     GroupName="RotationType"
+                                                     Margin="0,0,28,0"
+                                                     FontWeight="Medium" />
+                                        <RadioButton Content="📄 Single File Rotation"
+                                                     IsChecked="{Binding IsFile, Mode=TwoWay}"
+                                                     GroupName="RotationType"
+                                                     FontWeight="Medium" />
                                     </StackPanel>
 
-                                    <ProgressBar Grid.Column="1"
-                                                 IsIndeterminate="{Binding DataContext.IsRunningBackup, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                 Visibility="{Binding DataContext.IsRunningBackup, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
-                                                 Width="140"
-                                                 Height="10" />
-                                </Grid>
+                                    <!-- Status: Active / Disabled -->
+                                    <Border Background="{StaticResource CardSubtleBrush}"
+                                            BorderBrush="{StaticResource BorderLightBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="14">
+                                        <CheckBox Content="Disable this backup set (Skip execution during automated CLI tasks)"
+                                                  IsChecked="{Binding Disabled, Mode=TwoWay}"
+                                                  Style="{StaticResource ModernCheckBox}" />
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                        </ScrollViewer>
+                    </TabItem>
 
-                                <!-- Live Log Viewer -->
-                                <Border Background="#0F172A"
-                                        CornerRadius="8"
-                                        Padding="12"
-                                        MinHeight="180"
-                                        MaxHeight="260">
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                        <ItemsControl ItemsSource="{Binding DataContext.ExecutionLogs, RelativeSource={RelativeSource AncestorType=Window}}">
+                    <!-- TAB 2: Rotation Paths -->
+                    <TabItem Header="📁 Rotation Paths">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                            <StackPanel DataContext="{Binding SelectedBackupSet}">
+
+                                <!-- Source Path Card -->
+                                <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="Source Target"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Margin="0,0,0,12" />
+
+                                        <TextBlock Text="Source Folder / File Path to rotate:"
+                                                   FontWeight="Medium"
+                                                   Margin="0,0,0,6" />
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding SourcePath, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource RoundedTextBox}" />
+                                            <Button Grid.Column="1"
+                                                    Content="Browse..."
+                                                    Style="{StaticResource RoundedCompactButton}"
+                                                    Click="BrowseSourcePath_Click"
+                                                    Margin="8,0,0,0" />
+                                        </Grid>
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox Content="Keep Source (Do not delete/move source after copying to slot 1)"
+                                                      IsChecked="{Binding KeepSource, Mode=TwoWay}"
+                                                      Style="{StaticResource ModernCheckBox}"
+                                                      Margin="0,0,24,0" />
+                                            <CheckBox Content="Keep First Directory"
+                                                      IsChecked="{Binding KeepFirstDir, Mode=TwoWay}"
+                                                      Style="{StaticResource ModernCheckBox}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Generator Toolbar Card -->
+                                <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16" Background="{StaticResource CardSubtleBrush}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="Path Auto-Fill &amp; Folder Management Utility"
+                                                   FontWeight="Bold"
+                                                   FontSize="13"
+                                                   Margin="0,0,0,10" />
+
+                                        <Grid Grid.Row="1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Reference Path Input -->
+                                            <TextBox Text="{Binding DataContext.ReferencePath, RelativeSource={RelativeSource AncestorType=Window}, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource RoundedTextBox}"
+                                                     ToolTip="Base reference path, e.g. D:\Backups\Daily"
+                                                     VerticalAlignment="Center" />
+
+                                            <!-- Slot Count -->
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0">
+                                                <TextBlock Text="Rolls:" VerticalAlignment="Center" FontWeight="Medium" Margin="0,0,6,0" />
+                                                <ComboBox SelectedIndex="{Binding DataContext.SlotCountSelection, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}"
+                                                          Width="65"
+                                                          VerticalAlignment="Center">
+                                                    <ComboBoxItem Content="1" />
+                                                    <ComboBoxItem Content="2" />
+                                                    <ComboBoxItem Content="3" />
+                                                    <ComboBoxItem Content="4" />
+                                                    <ComboBoxItem Content="5" />
+                                                    <ComboBoxItem Content="6" />
+                                                    <ComboBoxItem Content="7" />
+                                                    <ComboBoxItem Content="8" />
+                                                    <ComboBoxItem Content="9" />
+                                                    <ComboBoxItem Content="10" />
+                                                    <ComboBoxItem Content="11" />
+                                                    <ComboBoxItem Content="12" />
+                                                    <ComboBoxItem Content="13" />
+                                                    <ComboBoxItem Content="14" />
+                                                </ComboBox>
+                                            </StackPanel>
+
+                                            <!-- Auto Fill Button -->
+                                            <Button Grid.Column="2"
+                                                    Content="⚡ Auto-Fill 1..N"
+                                                    Style="{StaticResource RoundedPrimaryButton}"
+                                                    Command="{Binding DataContext.AutoFillSlotsCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Margin="0,0,8,0" />
+
+                                            <!-- Create Missing Folders Button -->
+                                            <Button Grid.Column="3"
+                                                    Content="📁 Create Folders"
+                                                    Style="{StaticResource RoundedSecondaryButton}"
+                                                    Command="{Binding DataContext.CreateMissingFoldersCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Rotation Slots List -->
+                                <Border Style="{StaticResource ModernCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="Destination Rotation Slots"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Margin="0,0,0,12" />
+
+                                        <ItemsControl ItemsSource="{Binding Slots}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <TextBlock Text="{Binding}"
-                                                               FontFamily="Consolas, Cascadia Code, Courier New"
-                                                               FontSize="12"
-                                                               Foreground="#E2E8F0"
-                                                               TextWrapping="Wrap" />
+                                                    <Grid Margin="0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="80" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Slot Badge -->
+                                                        <Border Background="#E0F2FE"
+                                                                CornerRadius="6"
+                                                                Padding="8,4"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Index, StringFormat='Slot #{0}'}"
+                                                                       FontWeight="Bold"
+                                                                       FontSize="12"
+                                                                       Foreground="{StaticResource PrimaryAccentBrush}" />
+                                                        </Border>
+
+                                                        <!-- Slot Path -->
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Path, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Style="{StaticResource RoundedTextBox}"
+                                                                 Margin="8,0" />
+
+                                                        <!-- Browse Button -->
+                                                        <Button Grid.Column="2"
+                                                                Content="Browse..."
+                                                                Style="{StaticResource RoundedCompactButton}"
+                                                                Click="BrowseSlotPath_Click"
+                                                                Margin="0,0,12,0" />
+
+                                                        <!-- Keep Checkbox -->
+                                                        <CheckBox Grid.Column="3"
+                                                                  Content="Keep"
+                                                                  IsChecked="{Binding Keep, Mode=TwoWay}"
+                                                                  Style="{StaticResource ModernCheckBox}"
+                                                                  ToolTip="Preserve existing contents instead of purging during rotation" />
+                                                    </Grid>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                    </ScrollViewer>
+                                    </StackPanel>
                                 </Border>
                             </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- TAB 3: Scripts & Execution -->
+                    <TabItem Header="▶ Scripts &amp; Execution">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,12,0,0">
+                            <StackPanel DataContext="{Binding SelectedBackupSet}">
+
+                                <!-- Pre & Post Commands Card -->
+                                <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16">
+                                    <StackPanel>
+                                        <TextBlock Text="Script Hooks"
+                                                   FontSize="15"
+                                                   FontWeight="Bold"
+                                                   Margin="0,0,0,12" />
+
+                                        <!-- Pre Command -->
+                                        <TextBlock Text="Pre-Rotation Command (Executes before backup starts. Non-zero exit code halts rotation):"
+                                                   FontWeight="Medium"
+                                                   Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding PreCommand, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource RoundedTextBox}"
+                                                 Margin="0,0,0,16" />
+
+                                        <!-- Post Command -->
+                                        <TextBlock Text="Post-Rotation Command (Executes after rotation finishes successfully):"
+                                                   FontWeight="Medium"
+                                                   Margin="0,0,0,6" />
+                                        <TextBox Text="{Binding PostCommand, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource RoundedTextBox}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Task Scheduler Command Card -->
+                                <Border Style="{StaticResource ModernCard}" Margin="0,0,0,16" Background="{StaticResource CardSubtleBrush}">
+                                    <StackPanel>
+                                        <TextBlock Text="Task Scheduler Integration"
+                                                   FontSize="14"
+                                                   FontWeight="Bold"
+                                                   Margin="0,0,0,8" />
+                                        <TextBlock Text="Command line for automated Windows Task Scheduler tasks:"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,0,0,8" />
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Text="{Binding CliCommandSnippet, Mode=OneWay}"
+                                                     Style="{StaticResource RoundedTextBox}"
+                                                     IsReadOnly="True"
+                                                     Background="#F8FAFC" />
+                                            <Button Grid.Column="1"
+                                                    Content="📋 Copy Command"
+                                                    Style="{StaticResource RoundedPrimaryButton}"
+                                                    Command="{Binding DataContext.CopyCliSnippetCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Margin="8,0,0,0" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Test Execution & Live Log Card -->
+                                <Border Style="{StaticResource ModernCard}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="▶ Test Run Backup Now"
+                                                        Style="{StaticResource RoundedPrimaryButton}"
+                                                        Command="{Binding DataContext.TestRunBackupCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        Margin="0,0,12,0" />
+                                                <Button Content="Clear Logs"
+                                                        Style="{StaticResource RoundedCompactButton}"
+                                                        Command="{Binding DataContext.ClearLogsCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </StackPanel>
+
+                                            <ProgressBar Grid.Column="1"
+                                                         IsIndeterminate="{Binding DataContext.IsRunningBackup, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         Visibility="{Binding DataContext.IsRunningBackup, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVis}}"
+                                                         Width="140"
+                                                         Height="10" />
+                                        </Grid>
+
+                                        <!-- Live Log Viewer -->
+                                        <Border Background="#0F172A"
+                                                CornerRadius="8"
+                                                Padding="12"
+                                                MinHeight="180"
+                                                MaxHeight="260">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                <ItemsControl ItemsSource="{Binding DataContext.ExecutionLogs, RelativeSource={RelativeSource AncestorType=Window}}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}"
+                                                                       FontFamily="Consolas, Cascadia Code, Courier New"
+                                                                       FontSize="12"
+                                                                       Foreground="#E2E8F0"
+                                                                       TextWrapping="Wrap" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
 
         <!-- Footer Status Bar -->
         <Border Grid.Row="2"
@@ -534,10 +618,10 @@
                            Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1"
-                           Text="RotateBackup .NET 10 | Modern Rounded Native Edition"
+                           Text="{Binding BackupSets.Count, StringFormat='Total Sets: {0}'}"
                            FontSize="12"
                            FontWeight="Medium"
-                           Foreground="{StaticResource TextMutedBrush}"
+                           Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center" />
             </Grid>
         </Border>

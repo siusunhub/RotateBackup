@@ -6,6 +6,7 @@
         xmlns:vm="clr-namespace:RotateBackup.Wpf.ViewModels"
         mc:Ignorable="d"
         Title="RotateBackup Manager"
+        Icon="/app.ico"
         Height="800"
         Width="1120"
         MinHeight="650"

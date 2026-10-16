@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>RotateBackup</AssemblyName>
     <RootNamespace>RotateBackup.Cli</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

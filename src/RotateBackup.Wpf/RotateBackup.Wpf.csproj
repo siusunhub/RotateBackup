@@ -8,7 +8,12 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>RotateBackupSetting</AssemblyName>
     <RootNamespace>RotateBackup.Wpf</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\RotateBackup.Core\RotateBackup.Core.csproj" />

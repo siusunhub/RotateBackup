@@ -111,11 +111,6 @@ To automate backups, add an action in Windows Task Scheduler:
 dotnet build -c Release
 ```
 
-### Run Unit Tests
-```powershell
-dotnet test -c Release
-```
-
 ### Publish Lightweight Single-File Executables
 Publish binaries without bundling the 60MB+ C# runtime:
 

@@ -8,4 +8,7 @@
 *.sln.docstates
 TestResults/
 [Pp]ublish/
+[Tt]ests/
 .superpowers/
+docs/
+backup_settings.json

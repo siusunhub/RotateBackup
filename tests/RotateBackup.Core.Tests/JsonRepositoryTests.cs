@@ -25,6 +25,8 @@ namespace RotateBackup.Core.Tests
                         Remark = "Test backup",
                         IsDirectory = true,
                         SourcePath = @"D:\Source",
+                        EnableLog = true,
+                        LogPath = @"D:\Logs\test_cmd.log",
                         Slots = new List<RotationSlot>
                         {
                             new RotationSlot { Index = 1, Path = @"D:\Backup1", Keep = false },
@@ -43,6 +45,8 @@ namespace RotateBackup.Core.Tests
                 Assert.NotNull(loaded);
                 Assert.Single(loaded.BackupSets);
                 Assert.Equal("test_cmd", loaded.BackupSets[0].Command);
+                Assert.True(loaded.BackupSets[0].EnableLog);
+                Assert.Equal(@"D:\Logs\test_cmd.log", loaded.BackupSets[0].LogPath);
                 Assert.Equal(2, loaded.BackupSets[0].Slots.Count);
                 Assert.True(loaded.BackupSets[0].Slots[1].Keep);
             }

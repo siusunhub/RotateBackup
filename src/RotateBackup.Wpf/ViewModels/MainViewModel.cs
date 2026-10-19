@@ -17,6 +17,7 @@ namespace RotateBackup.Wpf.ViewModels
         private BackupSetViewModel? _selectedBackupSet;
         private string _referencePath = string.Empty;
         private int _slotCountSelection = 5;
+        private bool _isUpdatingSelectionInternally;
         private bool _isRunningBackup;
         private string _statusMessage = "Ready";
 
@@ -34,6 +35,15 @@ namespace RotateBackup.Wpf.ViewModels
             SaveAllCommand = new RelayCommand(ExecuteSaveAll);
             AutoFillSlotsCommand = new RelayCommand(ExecuteAutoFillSlots, () => SelectedBackupSet != null);
             CreateMissingFoldersCommand = new RelayCommand(ExecuteCreateMissingFolders, () => SelectedBackupSet != null);
+            AddSlotCommand = new RelayCommand(() => ExecuteAddSlot(), () => SelectedBackupSet != null && SelectedBackupSet.Slots.Count < 30);
+            RemoveSlotCommand = new RelayCommand(() => ExecuteRemoveSlot(), () => SelectedBackupSet != null && SelectedBackupSet.Slots.Count > 1);
+            DeleteSlotCommand = new RelayCommand(param =>
+            {
+                if (param is RotationSlotItemViewModel slot)
+                {
+                    ExecuteDeleteSlot(slot);
+                }
+            });
             CopyCliSnippetCommand = new RelayCommand(() => ExecuteCopyCliSnippetCommand(), () => SelectedBackupSet != null && !string.IsNullOrWhiteSpace(SelectedBackupSet.Command));
             TestRunBackupCommand = new RelayCommand(async () => await ExecuteTestRunBackupAsync(), () => SelectedBackupSet != null && !IsRunningBackup);
             ClearLogsCommand = new RelayCommand(() => ExecutionLogs.Clear());
@@ -43,6 +53,10 @@ namespace RotateBackup.Wpf.ViewModels
 
         public ObservableCollection<BackupSetViewModel> BackupSets { get; }
         public ObservableCollection<string> ExecutionLogs { get; }
+        public ObservableCollection<int> AvailableRollCounts { get; } = new ObservableCollection<int>
+        {
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+        };
 
         public BackupSetViewModel? SelectedBackupSet
         {
@@ -52,10 +66,13 @@ namespace RotateBackup.Wpf.ViewModels
                 if (SetProperty(ref _selectedBackupSet, value))
                 {
                     OnPropertyChanged(nameof(HasSelectedBackupSet));
+                    _isUpdatingSelectionInternally = true;
                     if (_selectedBackupSet != null && _selectedBackupSet.Slots.Count > 0)
                     {
-                        SlotCountSelection = _selectedBackupSet.Slots.Count;
+                        _slotCountSelection = _selectedBackupSet.Slots.Count;
+                        OnPropertyChanged(nameof(SlotCountSelection));
                     }
+                    _isUpdatingSelectionInternally = false;
                 }
             }
         }
@@ -71,7 +88,16 @@ namespace RotateBackup.Wpf.ViewModels
         public int SlotCountSelection
         {
             get => _slotCountSelection;
-            set => SetProperty(ref _slotCountSelection, value);
+            set
+            {
+                if (SetProperty(ref _slotCountSelection, value))
+                {
+                    if (!_isUpdatingSelectionInternally)
+                    {
+                        AdjustSlotsToCount(value);
+                    }
+                }
+            }
         }
 
         public bool IsRunningBackup
@@ -91,6 +117,9 @@ namespace RotateBackup.Wpf.ViewModels
         public RelayCommand SaveAllCommand { get; }
         public RelayCommand AutoFillSlotsCommand { get; }
         public RelayCommand CreateMissingFoldersCommand { get; }
+        public RelayCommand AddSlotCommand { get; }
+        public RelayCommand RemoveSlotCommand { get; }
+        public RelayCommand DeleteSlotCommand { get; }
         public RelayCommand CopyCliSnippetCommand { get; }
         public RelayCommand TestRunBackupCommand { get; }
         public RelayCommand ClearLogsCommand { get; }
@@ -205,6 +234,93 @@ namespace RotateBackup.Wpf.ViewModels
             }
 
             StatusMessage = $"Auto-filled {count} slots using reference: {baseRef}";
+        }
+
+        private void AdjustSlotsToCount(int targetCount)
+        {
+            if (SelectedBackupSet == null || targetCount < 1 || targetCount > 30) return;
+            var slots = SelectedBackupSet.Slots;
+            if (slots.Count == targetCount) return;
+
+            if (slots.Count < targetCount)
+            {
+                string? prefix = null;
+                string? suffix = null;
+                var lastConfigured = slots.LastOrDefault(s => !string.IsNullOrWhiteSpace(s.Path));
+
+                if (lastConfigured != null)
+                {
+                    string path = lastConfigured.Path;
+                    string idxStr = lastConfigured.Index.ToString();
+                    int idx = path.LastIndexOf(idxStr, StringComparison.Ordinal);
+                    if (idx >= 0)
+                    {
+                        prefix = path.Substring(0, idx);
+                        suffix = path.Substring(idx + idxStr.Length);
+                    }
+                }
+                else if (!string.IsNullOrWhiteSpace(ReferencePath))
+                {
+                    string baseRef = ReferencePath.TrimEnd('\\', '/');
+                    prefix = SelectedBackupSet.IsDirectory
+                        ? $"{baseRef}{Path.DirectorySeparatorChar}"
+                        : $"{baseRef}.";
+                    suffix = string.Empty;
+                }
+
+                while (slots.Count < targetCount)
+                {
+                    int nextIdx = slots.Count + 1;
+                    string path = (prefix != null) ? $"{prefix}{nextIdx}{suffix}" : string.Empty;
+                    slots.Add(new RotationSlotItemViewModel(nextIdx, path, false));
+                }
+            }
+            else
+            {
+                while (slots.Count > targetCount)
+                {
+                    slots.RemoveAt(slots.Count - 1);
+                }
+            }
+
+            StatusMessage = $"Adjusted rotation slots to {slots.Count}";
+        }
+
+        private void ExecuteAddSlot()
+        {
+            if (SelectedBackupSet == null || SelectedBackupSet.Slots.Count >= 30) return;
+            int newCount = SelectedBackupSet.Slots.Count + 1;
+            AdjustSlotsToCount(newCount);
+            _isUpdatingSelectionInternally = true;
+            _slotCountSelection = newCount;
+            OnPropertyChanged(nameof(SlotCountSelection));
+            _isUpdatingSelectionInternally = false;
+        }
+
+        private void ExecuteRemoveSlot()
+        {
+            if (SelectedBackupSet == null || SelectedBackupSet.Slots.Count <= 1) return;
+            int newCount = SelectedBackupSet.Slots.Count - 1;
+            AdjustSlotsToCount(newCount);
+            _isUpdatingSelectionInternally = true;
+            _slotCountSelection = newCount;
+            OnPropertyChanged(nameof(SlotCountSelection));
+            _isUpdatingSelectionInternally = false;
+        }
+
+        private void ExecuteDeleteSlot(RotationSlotItemViewModel slot)
+        {
+            if (SelectedBackupSet == null || SelectedBackupSet.Slots.Count <= 1) return;
+            SelectedBackupSet.Slots.Remove(slot);
+            for (int i = 0; i < SelectedBackupSet.Slots.Count; i++)
+            {
+                SelectedBackupSet.Slots[i].Index = i + 1;
+            }
+            _isUpdatingSelectionInternally = true;
+            _slotCountSelection = SelectedBackupSet.Slots.Count;
+            OnPropertyChanged(nameof(SlotCountSelection));
+            _isUpdatingSelectionInternally = false;
+            StatusMessage = $"Removed slot. Remaining: {SelectedBackupSet.Slots.Count}";
         }
 
         private void ExecuteCreateMissingFolders()

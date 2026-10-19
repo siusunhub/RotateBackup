@@ -15,6 +15,8 @@ namespace RotateBackup.Core.Models
         public bool KeepFirstDir { get; set; }
         public string PreCommand { get; set; } = string.Empty;
         public string PostCommand { get; set; } = string.Empty;
+        public bool EnableLog { get; set; }
+        public string LogPath { get; set; } = string.Empty;
         public List<RotationSlot> Slots { get; set; } = new List<RotationSlot>();
     }
 }

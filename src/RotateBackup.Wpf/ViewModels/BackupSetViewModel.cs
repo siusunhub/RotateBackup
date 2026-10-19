@@ -17,6 +17,8 @@ namespace RotateBackup.Wpf.ViewModels
         private bool _keepFirstDir;
         private string _preCommand;
         private string _postCommand;
+        private bool _enableLog;
+        private string _logPath;
 
         public BackupSetViewModel(BackupSet? model = null)
         {
@@ -32,6 +34,8 @@ namespace RotateBackup.Wpf.ViewModels
             _keepFirstDir = model.KeepFirstDir;
             _preCommand = model.PreCommand;
             _postCommand = model.PostCommand;
+            _enableLog = model.EnableLog;
+            _logPath = model.LogPath ?? string.Empty;
 
             Slots = new ObservableCollection<RotationSlotItemViewModel>();
             if (model.Slots != null && model.Slots.Count > 0)
@@ -132,6 +136,28 @@ namespace RotateBackup.Wpf.ViewModels
             set => SetProperty(ref _postCommand, value);
         }
 
+        public bool EnableLog
+        {
+            get => _enableLog;
+            set
+            {
+                if (SetProperty(ref _enableLog, value))
+                {
+                    if (value && string.IsNullOrWhiteSpace(_logPath))
+                    {
+                        string safeName = !string.IsNullOrWhiteSpace(Command) ? Command : "backup";
+                        LogPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", $"{safeName}.log");
+                    }
+                }
+            }
+        }
+
+        public string LogPath
+        {
+            get => _logPath;
+            set => SetProperty(ref _logPath, value);
+        }
+
         public ObservableCollection<RotationSlotItemViewModel> Slots { get; }
 
         public string CliCommandSnippet
@@ -157,6 +183,8 @@ namespace RotateBackup.Wpf.ViewModels
                 KeepFirstDir = KeepFirstDir,
                 PreCommand = PreCommand,
                 PostCommand = PostCommand,
+                EnableLog = EnableLog,
+                LogPath = LogPath,
                 Slots = Slots.Select(s => s.ToModel()).ToList()
             };
         }

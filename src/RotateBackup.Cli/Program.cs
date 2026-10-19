@@ -13,7 +13,7 @@ namespace RotateBackup.Cli
         private static async Task<int> Main(string[] args)
         {
             Console.WriteLine("========================================");
-            Console.WriteLine(" RotateBackup CLI Runner (.NET 10)");
+            Console.WriteLine(" RotateBackup CLI Runner v0.2 (.NET 10)");
             Console.WriteLine("========================================");
 
             if (args.Length == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "/?")

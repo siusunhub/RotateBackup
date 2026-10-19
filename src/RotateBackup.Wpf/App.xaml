@@ -23,7 +23,6 @@
 
             <Style TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI, sans-serif" />
-                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>

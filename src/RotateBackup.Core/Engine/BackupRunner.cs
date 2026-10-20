@@ -3,25 +3,87 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using RotateBackup.Core.Logging;
 using RotateBackup.Core.Models;
 
 namespace RotateBackup.Core.Engine
 {
     public class BackupRunner
     {
-        private readonly SafetyValidator _safetyValidator;
+        private static readonly UTF8Encoding Utf8WithBom = new UTF8Encoding(true);
 
-        public BackupRunner(SafetyValidator? safetyValidator = null)
+        private readonly SafetyValidator _safetyValidator;
+        private readonly ExecutionLogStore _executionLogStore;
+        private readonly string _source;
+
+        public BackupRunner(
+            SafetyValidator? safetyValidator = null,
+            ExecutionLogStore? executionLogStore = null,
+            string source = "Unknown")
         {
             _safetyValidator = safetyValidator ?? new SafetyValidator();
+            _executionLogStore = executionLogStore ?? new ExecutionLogStore(AppDomain.CurrentDomain.BaseDirectory);
+            _source = string.IsNullOrWhiteSpace(source) ? "Unknown" : source;
         }
 
+        /// <summary>
+        /// Runs a backup set and records the execution (start time, end time, success/failure)
+        /// in the execution log. The log is shared by every program, but all appends are
+        /// serialized, so the CLI, the manager and Task Scheduler jobs can run at the same
+        /// time without corrupting or interleaving the log entries.
+        /// </summary>
         public async Task<bool> RunAsync(BackupSet set, Action<string>? logCallback = null, CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(set);
 
+            ExecutionRecord? execution = null;
+            try
+            {
+                execution = _executionLogStore.Start(set.Command, _source);
+            }
+            catch (Exception ex)
+            {
+                logCallback?.Invoke($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [WARNING] Could not create execution log entry: {ex.Message}");
+            }
+
+            RunResult result;
+            try
+            {
+                result = await RunCoreAsync(set, logCallback, ct);
+            }
+            catch (Exception ex)
+            {
+                if (execution != null)
+                {
+                    _executionLogStore.Complete(execution, false, $"{ex.GetType().Name}: {ex.Message}");
+                }
+                throw;
+            }
+
+            if (execution != null)
+            {
+                _executionLogStore.Complete(execution, result.Success, result.Message);
+            }
+
+            return result.Success;
+        }
+
+        /// <summary>Result of a single execution, used to build the execution log entry.</summary>
+        private sealed class RunResult
+        {
+            public bool Success { get; private init; }
+            public string Message { get; private init; } = string.Empty;
+
+            public static RunResult Ok() => new RunResult { Success = true };
+
+            public static RunResult Fail(string message) => new RunResult { Success = false, Message = message };
+        }
+
+        private async Task<RunResult> RunCoreAsync(BackupSet set, Action<string>? logCallback, CancellationToken ct)
+        {
             var stopwatch = Stopwatch.StartNew();
             string? resolvedLogPath = null;
             object logLock = new object();
@@ -42,11 +104,11 @@ namespace RotateBackup.Core.Engine
 
                     lock (logLock)
                     {
-                        File.AppendAllText(resolvedLogPath,
+                        AppendToLogFile(resolvedLogPath,
                             $"{Environment.NewLine}--------------------------------------------------------------------------------" +
                             $"{Environment.NewLine}[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [START] Starting Backup Job: '{set.Command}' ({set.Remark})" +
                             $"{Environment.NewLine}--------------------------------------------------------------------------------" +
-                            $"{Environment.NewLine}", System.Text.Encoding.UTF8);
+                            $"{Environment.NewLine}");
                     }
                 }
                 catch (Exception ex)
@@ -55,10 +117,20 @@ namespace RotateBackup.Core.Engine
                 }
             }
 
+            string? lastError = null;
+
             void Log(string message, bool writeToFile = true)
             {
                 string formatted = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
                 logCallback?.Invoke(formatted);
+
+                // Remember the most recent failure reason for the execution log entry.
+                if (message.StartsWith("[CRASH", StringComparison.OrdinalIgnoreCase) ||
+                    message.StartsWith("[FAILED", StringComparison.OrdinalIgnoreCase) ||
+                    message.StartsWith("[ERROR", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastError = message;
+                }
 
                 // For copying process: screen shows every line, but file log skips intermediate progress/verification lines
                 if (writeToFile && (message.StartsWith("[COPY PROGRESS]", StringComparison.OrdinalIgnoreCase) ||
@@ -73,12 +145,14 @@ namespace RotateBackup.Core.Engine
                     {
                         lock (logLock)
                         {
-                            File.AppendAllText(resolvedLogPath, formatted + Environment.NewLine, System.Text.Encoding.UTF8);
+                            AppendToLogFile(resolvedLogPath, formatted + Environment.NewLine);
                         }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ensure logging failure does not interrupt the backup
+                        // Ensure logging failure does not interrupt the backup, but make the
+                        // problem visible instead of silently dropping the line.
+                        logCallback?.Invoke($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [WARNING] Could not write to activity log '{resolvedLogPath}': {ex.Message}");
                     }
                 }
             }
@@ -91,7 +165,7 @@ namespace RotateBackup.Core.Engine
             if (set.Disabled)
             {
                 Log("[WARNING] Task is disabled in settings. Skipping execution.");
-                return false;
+                return RunResult.Fail("Task is disabled in settings.");
             }
 
             if (set.EnableLog && !string.IsNullOrEmpty(resolvedLogPath))
@@ -103,7 +177,7 @@ namespace RotateBackup.Core.Engine
             if (!_safetyValidator.IsPathSafe(set.SourcePath, out string sourceReason))
             {
                 Log($"[CRASH/ERROR] Source path rejected by safety check: {sourceReason}");
-                return false;
+                return RunResult.Fail($"Source path rejected by safety check: {sourceReason}");
             }
 
             var validSlots = set.Slots
@@ -116,7 +190,7 @@ namespace RotateBackup.Core.Engine
                 if (!_safetyValidator.IsPathSafe(slot.Path, out string slotReason))
                 {
                     Log($"[CRASH/ERROR] Slot #{slot.Index} path rejected by safety check: {slotReason}");
-                    return false;
+                    return RunResult.Fail($"Slot #{slot.Index} path rejected by safety check: {slotReason}");
                 }
             }
 
@@ -130,7 +204,7 @@ namespace RotateBackup.Core.Engine
                 if (exitCode != 0)
                 {
                     Log($"[CRASH/ERROR] Pre-Command failed with exit code {exitCode}. Aborting rotation.");
-                    return false;
+                    return RunResult.Fail($"Pre-Command failed with exit code {exitCode}.");
                 }
                 Log("[PRE-COMMAND] Pre-Command completed successfully.");
             }
@@ -152,13 +226,13 @@ namespace RotateBackup.Core.Engine
             {
                 Log($"[CRASH] Rotation encountered an unhandled exception: {ex.GetType().Name}: {ex.Message}");
                 Log($"[CRASH STACKTRACE] {ex.StackTrace}");
-                return false;
+                return RunResult.Fail($"{ex.GetType().Name}: {ex.Message}");
             }
 
             if (!rotationSuccess)
             {
                 Log($"[FAILED] Backup task failed. Duration: {stopwatch.Elapsed.TotalSeconds:F2}s");
-                return false;
+                return RunResult.Fail(lastError ?? "Rotation failed.");
             }
 
             // 4. Post-Command Execution
@@ -177,7 +251,21 @@ namespace RotateBackup.Core.Engine
             }
 
             Log($"[COMPLETE] Backup task '{set.Command}' completed successfully. Duration: {stopwatch.Elapsed.TotalSeconds:F2}s");
-            return true;
+            return RunResult.Ok();
+        }
+
+        /// <summary>
+        /// Appends text to a log file that may be written by several processes at the same time.
+        /// FileShare.ReadWrite | FileShare.Delete prevents "the file is being used by another
+        /// process" errors, and Windows places every append at the end of the file so lines of
+        /// concurrent writers are never overwritten.
+        /// </summary>
+        private static void AppendToLogFile(string path, string content)
+        {
+            using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+            using var writer = new StreamWriter(stream, Utf8WithBom);
+            writer.Write(content);
+            writer.Flush();
         }
 
         private async Task<bool> RotateDirectoriesAsync(
@@ -206,7 +294,7 @@ namespace RotateBackup.Core.Engine
                 var currentSlot = slots[i];       // target: slot i+1 (1-based)
                 var previousSlot = slots[i - 1];   // source: slot i
 
-                await RollDirectorySlotAsync(previousSlot, currentSlot, log, screenOnlyLog, ct);
+                await RollDirectorySlotAsync(previousSlot, currentSlot, log, screenOnlyLog, ct, set.EnableCrcCheck);
             }
 
             // Move or copy Source to Slot 1
@@ -227,7 +315,7 @@ namespace RotateBackup.Core.Engine
                 }
                 log($"[PROCESS DIR] Transferring source directory '{set.SourcePath}' -> slot #1 '{firstSlot.Path}' (KeepSource=True)");
                 var sw = Stopwatch.StartNew();
-                await CopyDirectoryAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog);
+                await CopyDirectoryAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog, set.EnableCrcCheck);
                 log($"[PROCESS DIR] Completed transferring source directory in {sw.Elapsed.TotalSeconds:F2}s");
             }
             else
@@ -236,7 +324,7 @@ namespace RotateBackup.Core.Engine
                 {
                     log($"[PROCESS DIR] Transferring source directory '{set.SourcePath}' -> slot #1 '{firstSlot.Path}' (KeepSource=False)");
                     var sw = Stopwatch.StartNew();
-                    await CopyDirectoryAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog);
+                    await CopyDirectoryAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog, set.EnableCrcCheck);
                     log($"[PROCESS DIR] Completed transferring source directory in {sw.Elapsed.TotalSeconds:F2}s");
                     log($"[CLEANUP] Deleting source directory '{set.SourcePath}' (KeepSource is false)");
                     SafeDeleteDirectory(set.SourcePath, log);
@@ -244,7 +332,7 @@ namespace RotateBackup.Core.Engine
                 else
                 {
                     log($"[PROCESS DIR] Moving source directory '{set.SourcePath}' -> '{firstSlot.Path}'");
-                    await MoveOrCopyDirectorySafelyAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog);
+                    await MoveOrCopyDirectorySafelyAsync(set.SourcePath, firstSlot.Path, log, ct, screenOnlyLog, set.EnableCrcCheck);
                 }
             }
 
@@ -256,7 +344,8 @@ namespace RotateBackup.Core.Engine
             RotationSlot currentSlot,
             Action<string> log,
             Action<string> screenOnlyLog,
-            CancellationToken ct)
+            CancellationToken ct,
+            bool verifyCrc = false)
         {
             if (string.Equals(previousSlot.Path, currentSlot.Path, StringComparison.OrdinalIgnoreCase))
             {
@@ -371,13 +460,13 @@ namespace RotateBackup.Core.Engine
             if (!Directory.Exists(currentSlot.Path))
             {
                 log($"[PROCESS DIR] Moving folder contents: '{previousSlot.Path}' -> '{currentSlot.Path}'");
-                await MoveOrCopyDirectorySafelyAsync(previousSlot.Path, currentSlot.Path, log, ct, screenOnlyLog);
+                await MoveOrCopyDirectorySafelyAsync(previousSlot.Path, currentSlot.Path, log, ct, screenOnlyLog, verifyCrc);
             }
             else
             {
                 log($"[PROCESS DIR] Target exists (Keep={currentSlot.Keep}), copying contents: '{previousSlot.Path}' -> '{currentSlot.Path}'");
                 var sw = Stopwatch.StartNew();
-                await CopyDirectoryAsync(previousSlot.Path, currentSlot.Path, log, ct, screenOnlyLog);
+                await CopyDirectoryAsync(previousSlot.Path, currentSlot.Path, log, ct, screenOnlyLog, verifyCrc);
                 log($"[PROCESS DIR] Completed copying contents in {sw.Elapsed.TotalSeconds:F2}s");
                 if (!currentSlot.Keep)
                 {
@@ -559,7 +648,7 @@ namespace RotateBackup.Core.Engine
                         {
                             log($"[PROCESS FILE] Transferring file: '{previousSlot.Path}' -> '{currentSlot.Path}'");
                             var rollSw = Stopwatch.StartNew();
-                            await CopyFileWithRetryAndProgressAsync(previousSlot.Path, currentSlot.Path, log, ct);
+                            await CopyFileWithRetryAndProgressAsync(previousSlot.Path, currentSlot.Path, log, ct, verifyCrc: set.EnableCrcCheck);
                             log($"[PROCESS FILE] Completed transferring '{Path.GetFileName(previousSlot.Path)}' in {rollSw.Elapsed.TotalSeconds:F2}s");
                             if (!File.Exists(currentSlot.Path) || !sameVolume)
                             {
@@ -600,7 +689,7 @@ namespace RotateBackup.Core.Engine
             {
                 // Robust buffered stream copy with progress, retry, disk space validation
                 var copySw = Stopwatch.StartNew();
-                await CopyFileWithRetryAndProgressAsync(set.SourcePath, firstSlot.Path, log, ct);
+                await CopyFileWithRetryAndProgressAsync(set.SourcePath, firstSlot.Path, log, ct, verifyCrc: set.EnableCrcCheck);
                 log($"[PROCESS FILE] Completed transferring source file in {copySw.Elapsed.TotalSeconds:F2}s");
 
                 if (!set.KeepSource)
@@ -618,7 +707,8 @@ namespace RotateBackup.Core.Engine
             string destinationDir,
             Action<string> log,
             CancellationToken ct,
-            Action<string>? screenOnlyLog = null)
+            Action<string>? screenOnlyLog = null,
+            bool verifyCrc = false)
         {
             var screenLog = screenOnlyLog ?? log;
             var dir = new DirectoryInfo(sourceDir);
@@ -635,7 +725,7 @@ namespace RotateBackup.Core.Engine
                 string targetFilePath = Path.Combine(destinationDir, file.Name);
                 // Intermediate individual files: show on screen only to avoid massive log file inflation
                 screenLog($"[PROCESS FILE] Transferring file '{file.FullName}' -> '{targetFilePath}' ({FormatBytes(file.Length)})");
-                await CopyFileWithRetryAndProgressAsync(file.FullName, targetFilePath, log, ct);
+                await CopyFileWithRetryAndProgressAsync(file.FullName, targetFilePath, log, ct, verifyCrc: verifyCrc);
             }
 
             foreach (var subDir in dir.GetDirectories())
@@ -643,7 +733,7 @@ namespace RotateBackup.Core.Engine
                 ct.ThrowIfCancellationRequested();
                 string newDestinationDir = Path.Combine(destinationDir, subDir.Name);
                 screenLog($"[PROCESS DIR] Entering directory '{subDir.FullName}' -> '{newDestinationDir}'");
-                await CopyDirectoryAsync(subDir.FullName, newDestinationDir, log, ct, screenLog);
+                await CopyDirectoryAsync(subDir.FullName, newDestinationDir, log, ct, screenLog, verifyCrc);
             }
         }
 
@@ -652,7 +742,8 @@ namespace RotateBackup.Core.Engine
             string destinationDir,
             Action<string> log,
             CancellationToken ct,
-            Action<string>? screenOnlyLog = null)
+            Action<string>? screenOnlyLog = null,
+            bool verifyCrc = false)
         {
             if (IsSameVolume(sourceDir, destinationDir) && !Directory.Exists(destinationDir))
             {
@@ -670,7 +761,7 @@ namespace RotateBackup.Core.Engine
             // Cross-volume or existing target directory: recursive copy then delete
             var sw = Stopwatch.StartNew();
             log($"[PROCESS DIR] Copying directory '{sourceDir}' -> '{destinationDir}'");
-            await CopyDirectoryAsync(sourceDir, destinationDir, log, ct, screenOnlyLog);
+            await CopyDirectoryAsync(sourceDir, destinationDir, log, ct, screenOnlyLog, verifyCrc);
             log($"[PROCESS DIR] Completed copying directory in {sw.Elapsed.TotalSeconds:F2}s");
             SafeDeleteDirectory(sourceDir, log);
         }
@@ -682,13 +773,16 @@ namespace RotateBackup.Core.Engine
         /// 3. 4MB chunked streaming with periodic progress logs
         /// 4. Auto retry policy with progressive delays (2s, 5s, 10s)
         /// 5. Size verification and timestamp preservation
+        /// 6. Optional CRC-32 verification of the copied file (re-reads the target and
+        ///    compares the checksum with the checksum of the copied bytes)
         /// </summary>
         public static async Task CopyFileWithRetryAndProgressAsync(
             string sourcePath,
             string destinationPath,
             Action<string> log,
             CancellationToken ct,
-            int maxRetries = 3)
+            int maxRetries = 3,
+            bool verifyCrc = false)
         {
             var sourceInfo = new FileInfo(sourcePath);
             if (!sourceInfo.Exists)
@@ -708,7 +802,7 @@ namespace RotateBackup.Core.Engine
                 ct.ThrowIfCancellationRequested();
                 try
                 {
-                    await PerformStreamCopyAsync(sourcePath, destinationPath, sourceLength, log, ct);
+                    uint sourceCrc = await PerformStreamCopyAsync(sourcePath, destinationPath, sourceLength, log, ct);
 
                     // Post-copy verification
                     var destInfo = new FileInfo(destinationPath);
@@ -719,6 +813,17 @@ namespace RotateBackup.Core.Engine
                     if (destInfo.Length != sourceLength)
                     {
                         throw new IOException($"File size mismatch! Source: {sourceLength} bytes, Target: {destInfo.Length} bytes.");
+                    }
+
+                    // Optional CRC-32 check: the target is re-read from disk and compared with
+                    // the checksum of the bytes that were actually copied.
+                    if (verifyCrc)
+                    {
+                        uint targetCrc = ComputeTargetCrc(destinationPath, sourceLength, log, ct);
+
+                        EnsureCrc32Match(Path.GetFileName(destinationPath), sourceCrc, targetCrc);
+
+                        log($"[CRC CHECK] CRC32 verified for '{Path.GetFileName(destinationPath)}': {Crc32.ToHex(sourceCrc)}");
                     }
 
                     // Preserve original timestamps
@@ -732,7 +837,8 @@ namespace RotateBackup.Core.Engine
                         // Non-critical if filesystem doesn't support timestamp modification
                     }
 
-                    log($"[VERIFIED] File '{Path.GetFileName(destinationPath)}' ({FormatBytes(sourceLength)}) transferred and verified successfully.");
+                    string crcSuffix = verifyCrc ? $" CRC32: {Crc32.ToHex(sourceCrc)}" : string.Empty;
+                    log($"[VERIFIED] File '{Path.GetFileName(destinationPath)}' ({FormatBytes(sourceLength)}) transferred and verified successfully.{crcSuffix}");
                     return;
                 }
                 catch (Exception ex) when (attempt < maxRetries && (ex is IOException || ex is UnauthorizedAccessException))
@@ -770,7 +876,7 @@ namespace RotateBackup.Core.Engine
             }
         }
 
-        private static async Task PerformStreamCopyAsync(
+        private static async Task<uint> PerformStreamCopyAsync(
             string sourcePath,
             string destinationPath,
             long totalBytes,
@@ -790,6 +896,7 @@ namespace RotateBackup.Core.Engine
             var lastProgressReport = Stopwatch.StartNew();
             long copiedBytes = 0;
             long lastCopiedBytes = 0;
+            uint crc = 0xFFFFFFFFu; // running CRC-32 of the copied bytes
 
             // Open source with ReadWrite share to prevent crashes if file is open by another process
             using var sourceStream = new FileStream(
@@ -814,6 +921,10 @@ namespace RotateBackup.Core.Engine
                 await destStream.WriteAsync(buffer, 0, bytesRead, ct);
                 copiedBytes += bytesRead;
 
+                // The checksum is computed on the fly, so it costs nothing extra (the disk is
+                // the bottleneck long before the CPU can hash the data).
+                crc = Crc32.Compute(buffer, 0, bytesRead, crc);
+
                 // Log periodic progress for large files (>= 50 MB) every 3 seconds
                 if (totalBytes >= 50 * 1024 * 1024 && (lastProgressReport.ElapsedMilliseconds >= 3000 || copiedBytes == totalBytes))
                 {
@@ -830,6 +941,58 @@ namespace RotateBackup.Core.Engine
             }
 
             await destStream.FlushAsync(ct);
+
+            return crc ^ 0xFFFFFFFFu;
+        }
+
+        /// <summary>
+        /// Compares the checksum of the transferred bytes with the checksum of the file that
+        /// was read back from disk. A mismatch raises an IOException, which makes the copy
+        /// engine delete the faulty target and retry.
+        /// </summary>
+        public static void EnsureCrc32Match(string fileName, uint sourceCrc, uint targetCrc)
+        {
+            if (sourceCrc != targetCrc)
+            {
+                throw new IOException(
+                    $"CRC32 mismatch for '{fileName}'! Source: {Crc32.ToHex(sourceCrc)}, Target: {Crc32.ToHex(targetCrc)}.");
+            }
+        }
+
+        /// <summary>
+        /// Re-reads a copied file from disk and computes its CRC-32, so the copy can be
+        /// compared with the checksum of the bytes that were originally transferred.
+        /// </summary>
+        private static uint ComputeTargetCrc(
+            string destinationPath,
+            long totalBytes,
+            Action<string> log,
+            CancellationToken ct)
+        {
+            const int bufferSize = 4 * 1024 * 1024;
+            var buffer = new byte[bufferSize];
+            var lastProgressReport = Stopwatch.StartNew();
+            long lastBytes = 0;
+
+            uint crc = Crc32.ComputeFile(destinationPath, buffer, ct, (bytesRead, total) =>
+            {
+                if (lastProgressReport.ElapsedMilliseconds < 3000)
+                {
+                    return;
+                }
+
+                double elapsedSec = Math.Max(0.001, lastProgressReport.Elapsed.TotalSeconds);
+                long delta = bytesRead - lastBytes;
+                double speedMBs = (delta / (1024.0 * 1024.0)) / elapsedSec;
+                double percent = total > 0 ? (bytesRead * 100.0 / total) : 100.0;
+
+                log($"[CRC CHECK] Verifying '{Path.GetFileName(destinationPath)}': {FormatBytes(bytesRead)} / {FormatBytes(total)} ({percent:F1}%) at {speedMBs:F1} MB/s");
+
+                lastProgressReport.Restart();
+                lastBytes = bytesRead;
+            });
+
+            return crc;
         }
 
         private static void CheckDiskSpace(string destinationPath, long requiredBytes, Action<string> log)

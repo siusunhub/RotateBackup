@@ -56,6 +56,11 @@
                             <Setter TargetName="border" Property="Background" Value="{StaticResource SecondaryButtonBgBrush}" />
                             <Setter TargetName="border" Property="Opacity" Value="0.6" />
                         </Trigger>
+                        <!-- Invalid input (e.g. a command name with spaces or special characters) -->
+                        <Trigger Property="Validation.HasError" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource DangerBrush}" />
+                            <Setter TargetName="border" Property="BorderThickness" Value="1.5" />
+                        </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>

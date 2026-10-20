@@ -270,6 +270,8 @@
                 <!-- TABBED SETTINGS (For the Active Backup Set) -->
                 <TabControl Grid.Row="1"
                             Style="{StaticResource ModernTabControl}"
+                            x:Name="MainTabs"
+                            SelectionChanged="MainTabs_SelectionChanged"
                             Margin="0">
 
                     <!-- TAB 1: General Settings -->
@@ -286,9 +288,16 @@
                                     <TextBlock Text="Command Name (Used in Task Scheduler / CLI):"
                                                FontWeight="Medium"
                                                Margin="0,0,0,6" />
-                                    <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox Text="{Binding Command, UpdateSourceTrigger=PropertyChanged, ValidatesOnDataErrors=True}"
                                              Style="{StaticResource RoundedTextBox}"
-                                             Margin="0,0,0,16" />
+                                             ToolTip="Only English letters, numbers, '_' and '-' are allowed."
+                                             Margin="0,0,0,4" />
+                                    <TextBlock Text="{Binding CommandNameError}"
+                                               FontSize="11"
+                                               Foreground="{StaticResource DangerBrush}"
+                                               Margin="2,0,0,16"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding HasCommandNameError, Converter={StaticResource BoolToVis}}" />
 
                                     <!-- Remark -->
                                     <TextBlock Text="Remark / Description:"
@@ -360,9 +369,38 @@
                                             BorderThickness="1"
                                             CornerRadius="8"
                                             Padding="14">
-                                        <CheckBox Content="Disable this backup set (Skip execution during automated CLI tasks)"
-                                                  IsChecked="{Binding Disabled, Mode=TwoWay}"
-                                                  Style="{StaticResource ModernCheckBox}" />
+                                        <StackPanel>
+                                            <CheckBox Content="CRC Check for file copy complete"
+                                                      IsChecked="{Binding EnableCrcCheck, Mode=TwoWay}"
+                                                      Style="{StaticResource ModernCheckBox}"
+                                                      Margin="0,0,0,10" />
+                                            <CheckBox Content="Disable this backup set"
+                                                      IsChecked="{Binding Disabled, Mode=TwoWay}"
+                                                      Style="{StaticResource ModernCheckBox}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Execution Log Maintenance -->
+                                    <Border Background="{StaticResource CardSubtleBrush}"
+                                            BorderBrush="{StaticResource BorderLightBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="8"
+                                            Padding="14"
+                                            Margin="0,16,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Execution Log Maintenance"
+                                                       FontWeight="Bold"
+                                                       Margin="0,0,0,4" />
+                                            <TextBlock Text="Every backup run is recorded in a shared log file with its start time, end time and result. Remove entries older than 30 days to keep the file small."
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,10" />
+                                            <Button Content="🧹 Clean Execution Log (30+ days)"
+                                                    Style="{StaticResource RoundedSecondaryButton}"
+                                                    HorizontalAlignment="Left"
+                                                    Command="{Binding DataContext.CleanupExecutionLogCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                        </StackPanel>
                                     </Border>
                                 </StackPanel>
                             </Border>
@@ -707,9 +745,210 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
+
+                    <!-- TAB 4: Execution Log (start time / end time / result of every execution) -->
+                    <TabItem Header="📋 Execution Log">
+                        <Grid Margin="0,12,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!-- Toolbar -->
+                            <Border Style="{StaticResource ModernCard}" Padding="14" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Job:"
+                                                   FontWeight="Medium"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0" />
+                                        <Border Background="#E0F2FE"
+                                                CornerRadius="6"
+                                                Padding="10,3">
+                                            <TextBlock Text="{Binding SelectedBackupSet.Command, FallbackValue='(No set selected)'}"
+                                                       FontWeight="Bold"
+                                                       FontSize="13"
+                                                       Foreground="{StaticResource PrimaryAccentBrush}" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding ExecutionLogSummary}"
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0,0,0" />
+
+                                    <Button Grid.Column="2"
+                                            Content="🔄 Refresh"
+                                            Style="{StaticResource RoundedSecondaryButton}"
+                                            Command="{Binding RefreshExecutionLogCommand}"
+                                            Margin="0,0,8,0" />
+
+                                    <Button Grid.Column="3"
+                                            Content="📂 Open Folder"
+                                            Style="{StaticResource RoundedCompactButton}"
+                                            Command="{Binding OpenExecutionLogFolderCommand}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Execution History Table -->
+                            <Border Grid.Row="1" Style="{StaticResource ModernCard}" Padding="0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Table Header -->
+                                    <Grid Margin="16,14,16,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="100" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="STARTED" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="1" Text="ENDED" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="2" Text="DURATION" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="3" Text="RESULT" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="4" Text="COMMAND" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBlock Grid.Column="5" Text="SOURCE" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </Grid>
+
+                                    <ListBox Grid.Row="1"
+                                             ItemsSource="{Binding ExecutionHistory}"
+                                             SelectedItem="{Binding SelectedExecutionRecord, Mode=TwoWay}"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             Margin="0,0,0,10"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <ListBox.ItemContainerStyle>
+                                            <Style TargetType="ListBoxItem">
+                                                <Setter Property="Padding" Value="16,6" />
+                                                <Setter Property="Cursor" Value="Hand" />
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListBoxItem">
+                                                            <Border x:Name="itemBorder"
+                                                                    Background="Transparent"
+                                                                    BorderThickness="0,0,0,1"
+                                                                    BorderBrush="{StaticResource BorderLightBrush}"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="itemBorder" Property="Background" Value="{StaticResource SecondaryButtonHoverBrush}" />
+                                                                </Trigger>
+                                                                <Trigger Property="IsSelected" Value="True">
+                                                                    <Setter TargetName="itemBorder" Property="Background" Value="#E0F2FE" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListBox.ItemContainerStyle>
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="150" />
+                                                        <ColumnDefinition Width="150" />
+                                                        <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="100" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding StartedAtDisplay}"
+                                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding EndedAtDisplay}"
+                                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding DurationDisplay}"
+                                                               FontFamily="Consolas, Cascadia Code, Courier New"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="3"
+                                                               Text="{Binding ResultDisplay}"
+                                                               FontSize="12"
+                                                               FontWeight="Bold"
+                                                               Foreground="{Binding ResultBrush}"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding Command}"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="5"
+                                                               Text="{Binding Source}"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                                               VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <!-- Empty State -->
+                                    <TextBlock Grid.Row="1"
+                                               Text="No execution recorded yet for this backup set. Run it from the CLI or with Test Run to create the first entry."
+                                               FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Margin="24"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding HasNoExecutionHistory, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                            </Border>
+
+                            <!-- Detail of the selected execution -->
+                            <Border Grid.Row="2" Style="{StaticResource ModernCard}" Padding="14" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Execution Detail"
+                                               FontSize="13"
+                                               FontWeight="Bold"
+                                               Margin="0,0,0,8" />
+                                    <TextBox Text="{Binding ExecutionLogDetail, Mode=OneWay}"
+                                             Style="{StaticResource RoundedTextBox}"
+                                             IsReadOnly="True"
+                                             Background="#F8FAFC"
+                                             FontFamily="Consolas, Cascadia Code, Courier New"
+                                             FontSize="12"
+                                             MinHeight="90"
+                                             MaxHeight="110"
+                                             VerticalScrollBarVisibility="Auto"
+                                             TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </TabItem>
                 </TabControl>
             </Grid>
         </Grid>
+
 
         <!-- Footer Status Bar -->
         <Border Grid.Row="2"

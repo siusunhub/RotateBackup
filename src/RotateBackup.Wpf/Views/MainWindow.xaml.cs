@@ -15,6 +15,19 @@ namespace RotateBackup.Wpf.Views
             InitializeComponent();
         }
 
+        /// <summary>
+        /// Reloads the execution log every time the "Execution Log" tab is opened, so the
+        /// table always shows the latest executions of the selected backup set (including
+        /// the ones started by the CLI or by Windows Task Scheduler).
+        /// </summary>
+        private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DataContext is MainViewModel vm && MainTabs.SelectedIndex == 3)
+            {
+                vm.RefreshExecutionLog();
+            }
+        }
+
         private void BrowseSourcePath_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is MainViewModel vm && vm.SelectedBackupSet != null)

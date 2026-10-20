@@ -12,3 +12,4 @@ TestResults/
 .superpowers/
 docs/
 backup_settings.json
+logs/

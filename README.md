@@ -19,10 +19,15 @@
   - **Live Screen Stream**: Displays real-time progress for all files, streaming rates (MB/s), and `[VERIFIED]` tags during execution.
   - **Concise Log Files**: Disk logs record only milestone events, start/completion summaries, and critical warnings/errors, avoiding bloated multi-gigabyte log files.
 - **Dynamic Slot & Roll Management**: Supports dynamic expansion and contraction of rotation slots (2 to 99+) with automatic target path generation.
+- **Execution Log (Start / End / Result)**:
+  - **Single shared log file** (`logs/execution.log`) that records when every backup started, when it ended and whether it succeeded or failed.
+  - **Multi-process safe**: the CLI runner, the WPF manager and Task Scheduler jobs can write to the log at the same time without corrupting or interleaving lines (cross-process lock file, `FileShare.ReadWrite` reads).
+  - **Manager section**: a new *Execution Log* tab per backup set shows the previous executions of the selected set, and *General Settings* has a one-click cleanup of entries older than 30 days.
 - **Resilient File Stream Engine**:
   - Non-blocking copying using `FileShare.ReadWrite` to safely read active/locked files.
   - Exponential backoff retry engine for busy or locked system files.
   - Read-only attribute stripping and non-blocking staging trash cleanup (`_trash_*`).
+- **Optional CRC-32 Integrity Check**: per backup set, the copied file is re-read from disk and its CRC-32 checksum is compared with the checksum of the transferred bytes. A mismatch fails the copy and triggers the retry policy.
 - **Ultra-Lightweight Single-File Binaries**:
   - `RotateBackup.exe` (CLI Runner): **~350 KB**
   - `RotateBackupSetting.exe` (WPF Manager): **~800 KB**
@@ -71,6 +76,7 @@ RotateBackup stores configuration in human-readable, UTF-8 encoded JSON format:
       "Disabled": false,
       "EnableLogging": true,
       "LogPath": "C:\\Program Files\\RotateBackup\\logs\\client-backup.log",
+      "EnableCrcCheck": false,
       "RotationStrategy": "Rename"
     }
   ]
@@ -91,12 +97,84 @@ RotateBackup.exe client-backup
 RotateBackup.exe --help
 ```
 
+### Execution Log
+
+Every execution is recorded in one shared file (`logs/execution.log`) next to `backup_settings.json`.
+Each entry stores the **start time**, the **end time**, the **duration** and the **result**
+(`SUCCESS` / `FAILED` / `RUNNING`) of the execution.
+
+```powershell
+# List the 25 most recent executions of every job
+RotateBackup.exe logs
+
+# List the executions of a single job
+RotateBackup.exe logs client-backup --limit 10
+
+# Show the details of the most recent execution
+RotateBackup.exe logs client-backup --latest
+
+# Remove entries older than 30 days (same as the button in the manager)
+RotateBackup.exe logs --cleanup 30
+```
+
+> The log file is written by several programs at the same time (CLI, manager, Task Scheduler).
+> Every append is serialized with a small cross-process lock file, so entries never interleave
+> and are never lost. Reading is safe while another program is still writing.
+
 ### Automation with Windows Task Scheduler
 
 To automate backups, add an action in Windows Task Scheduler:
 - **Program/script**: `C:\Program Files\RotateBackup\RotateBackup.exe`
 - **Add arguments**: `client-backup`
 - **Start in**: `C:\Program Files\RotateBackup`
+
+---
+
+## Command Name Rules
+
+The command name of a backup set is used as the CLI argument, in the Windows Task Scheduler
+command line and as a field of the execution log, so it is restricted to simple, readable
+characters:
+
+| Allowed | Rejected |
+| :--- | :--- |
+| English letters `A-Z` `a-z` | spaces |
+| Numbers `0-9` | non-ASCII characters (`每日`, `café`) |
+| Underscore `_` | shell and path characters (`&`, `|`, `\`, `/`, `<`, `>`, `*`, `?`, `"`) |
+| Hyphen `-` | empty names, names longer than 64 characters |
+
+```powershell
+RotateBackup.exe daily_sql      # valid
+RotateBackup.exe client-backup  # valid
+RotateBackup.exe "daily sql"    # rejected: [ERROR] Command name may only contain English letters, numbers, '_' and '-' ...
+```
+
+The manager validates the field live: an invalid name is highlighted in red with an explanation
+below the input, and **Save All Changes** refuses to write an invalid configuration.
+
+---
+
+## CRC-32 Integrity Check (per backup set)
+
+*General Settings* of every backup set has a **CRC Check for file copy complete** checkbox (placed
+directly above *Disable this backup set*). When enabled:
+
+1. The CRC-32 checksum of the source is computed on the fly while the file is being copied
+   (no extra read - the disk is the bottleneck long before the CPU is).
+2. The copied file is **re-read from disk** and its CRC-32 is computed again.
+3. Both checksums are compared. On a mismatch the copy is deleted and retried
+   (2s / 5s / 10s backoff), and the backup is reported as failed if it still does not match.
+
+```
+[CRC CHECK] CRC32 verified for 'lumenarts.zip': 1301647F
+[VERIFIED] File 'lumenarts.zip' (327.86 MB) transferred and verified successfully. CRC32: 1301647F
+```
+
+The implementation is a self-contained slice-by-8 CRC-32 (no external dependency, so the single
+file executables stay small) and produces the same checksums as `zlib` compatible tools.
+
+> **Cost:** one extra sequential read of every copied file. Enable it for critical backups and
+> leave it off for very large data sets where the extra read is not worth it.
 
 ---
 

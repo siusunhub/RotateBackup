@@ -17,6 +17,7 @@ namespace RotateBackup.Core.Models
         public string PostCommand { get; set; } = string.Empty;
         public bool EnableLog { get; set; }
         public string LogPath { get; set; } = string.Empty;
+        public bool EnableCrcCheck { get; set; }
         public List<RotationSlot> Slots { get; set; } = new List<RotationSlot>();
     }
 }

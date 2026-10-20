@@ -1,10 +1,12 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using RotateBackup.Core.Engine;
+using RotateBackup.Core.Logging;
 using RotateBackup.Core.Models;
 using RotateBackup.Core.Storage;
 
@@ -13,6 +15,7 @@ namespace RotateBackup.Wpf.ViewModels
     public class MainViewModel : ViewModelBase
     {
         private readonly JsonBackupRepository _repository;
+        private readonly ExecutionLogStore _executionLogStore;
         private readonly string _configFilePath;
         private BackupSetViewModel? _selectedBackupSet;
         private string _referencePath = string.Empty;
@@ -20,14 +23,19 @@ namespace RotateBackup.Wpf.ViewModels
         private bool _isUpdatingSelectionInternally;
         private bool _isRunningBackup;
         private string _statusMessage = "Ready";
+        private ExecutionRecordViewModel? _selectedExecutionRecord;
+        private string _executionLogDetail = string.Empty;
+        private bool _isRefreshingExecutionLog;
 
         public MainViewModel()
         {
             _repository = new JsonBackupRepository();
             _configFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backup_settings.json");
+            _executionLogStore = new ExecutionLogStore(Path.GetDirectoryName(_configFilePath) ?? AppDomain.CurrentDomain.BaseDirectory);
 
             BackupSets = new ObservableCollection<BackupSetViewModel>();
             ExecutionLogs = new ObservableCollection<string>();
+            ExecutionHistory = new ObservableCollection<ExecutionRecordViewModel>();
 
             // Initialize RelayCommands
             NewBackupSetCommand = new RelayCommand(ExecuteNewBackupSet);
@@ -47,12 +55,20 @@ namespace RotateBackup.Wpf.ViewModels
             CopyCliSnippetCommand = new RelayCommand(() => ExecuteCopyCliSnippetCommand(), () => SelectedBackupSet != null && !string.IsNullOrWhiteSpace(SelectedBackupSet.Command));
             TestRunBackupCommand = new RelayCommand(async () => await ExecuteTestRunBackupAsync(), () => SelectedBackupSet != null && !IsRunningBackup);
             ClearLogsCommand = new RelayCommand(() => ExecutionLogs.Clear());
+            RefreshExecutionLogCommand = new RelayCommand(() => RefreshExecutionLog());
+            OpenExecutionLogFolderCommand = new RelayCommand(() => OpenExecutionLogFolder());
+            CleanupExecutionLogCommand = new RelayCommand(() => CleanupExecutionLog());
 
             LoadConfiguration();
+            RefreshExecutionLog();
         }
 
         public ObservableCollection<BackupSetViewModel> BackupSets { get; }
         public ObservableCollection<string> ExecutionLogs { get; }
+
+        /// <summary>All recorded executions of the selected backup set (newest first).</summary>
+        public ObservableCollection<ExecutionRecordViewModel> ExecutionHistory { get; }
+
         public ObservableCollection<int> AvailableRollCounts { get; } = new ObservableCollection<int>
         {
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
@@ -73,6 +89,9 @@ namespace RotateBackup.Wpf.ViewModels
                         OnPropertyChanged(nameof(SlotCountSelection));
                     }
                     _isUpdatingSelectionInternally = false;
+
+                    // The execution log section shows the history of the selected set only.
+                    RefreshExecutionLog();
                 }
             }
         }
@@ -112,6 +131,33 @@ namespace RotateBackup.Wpf.ViewModels
             set => SetProperty(ref _statusMessage, value);
         }
 
+        /// <summary>The execution currently shown in the detail pane.</summary>
+        public ExecutionRecordViewModel? SelectedExecutionRecord
+        {
+            get => _selectedExecutionRecord;
+            set
+            {
+                if (SetProperty(ref _selectedExecutionRecord, value))
+                {
+                    ExecutionLogDetail = value == null ? string.Empty : BuildExecutionDetail(value);
+                }
+            }
+        }
+
+        /// <summary>Raw content of the selected execution log entry.</summary>
+        public string ExecutionLogDetail
+        {
+            get => _executionLogDetail;
+            set => SetProperty(ref _executionLogDetail, value);
+        }
+
+        public bool HasExecutionHistory => ExecutionHistory.Count > 0;
+
+        public bool HasNoExecutionHistory => ExecutionHistory.Count == 0;
+
+        /// <summary>Short summary shown in the header of the execution log section.</summary>
+        public string ExecutionLogSummary => $"{ExecutionHistory.Count} execution(s) recorded";
+
         public RelayCommand NewBackupSetCommand { get; }
         public RelayCommand DeleteBackupSetCommand { get; }
         public RelayCommand SaveAllCommand { get; }
@@ -123,6 +169,9 @@ namespace RotateBackup.Wpf.ViewModels
         public RelayCommand CopyCliSnippetCommand { get; }
         public RelayCommand TestRunBackupCommand { get; }
         public RelayCommand ClearLogsCommand { get; }
+        public RelayCommand RefreshExecutionLogCommand { get; }
+        public RelayCommand OpenExecutionLogFolderCommand { get; }
+        public RelayCommand CleanupExecutionLogCommand { get; }
 
         private void LoadConfiguration()
         {
@@ -200,6 +249,27 @@ namespace RotateBackup.Wpf.ViewModels
 
         public void ExecuteSaveAll()
         {
+            // Refuse to save a configuration with an invalid command name, because the name is
+            // used as a CLI argument and inside the execution log.
+            var invalid = BackupSets
+                .Where(b => !string.IsNullOrWhiteSpace(b.Command) && b.HasCommandNameError)
+                .ToList();
+
+            if (invalid.Count > 0)
+            {
+                string details = string.Join(Environment.NewLine,
+                    invalid.Select(b => $"• '{b.Command}' - {b.CommandNameError}"));
+
+                MessageBox.Show(
+                    $"The following command names are invalid and cannot be saved:{Environment.NewLine}{details}",
+                    "Invalid Command Name",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                StatusMessage = "Save aborted: fix the invalid command name(s) first.";
+                return;
+            }
+
             var config = new BackupConfig
             {
                 Version = "2.0",
@@ -367,7 +437,7 @@ namespace RotateBackup.Wpf.ViewModels
             StatusMessage = $"Running test for: {SelectedBackupSet.Command}...";
             ExecutionLogs.Add($"[{DateTime.Now:HH:mm:ss}] Starting test execution for '{SelectedBackupSet.Command}'");
 
-            var runner = new BackupRunner();
+            var runner = new BackupRunner(executionLogStore: _executionLogStore, source: "Manager");
             var model = SelectedBackupSet.ToModel();
 
             try
@@ -387,7 +457,90 @@ namespace RotateBackup.Wpf.ViewModels
             finally
             {
                 IsRunningBackup = false;
+                RefreshExecutionLog();
             }
+        }
+
+        /// <summary>
+        /// Reloads the execution log (start time, end time and result of every execution)
+        /// of the currently selected backup set. Entries written by the CLI or by Task
+        /// Scheduler while the manager is open are picked up as well.
+        /// </summary>
+        public void RefreshExecutionLog()
+        {
+            if (_isRefreshingExecutionLog) return;
+            _isRefreshingExecutionLog = true;
+
+            try
+            {
+                // The section shows the execution history of the selected backup set only.
+                string? command = SelectedBackupSet?.Command;
+
+                IReadOnlyList<ExecutionRecord> records = _executionLogStore.List(command, 500);
+
+                string? previousRunId = _selectedExecutionRecord?.RunId;
+                ExecutionHistory.Clear();
+                foreach (var record in records)
+                {
+                    ExecutionHistory.Add(new ExecutionRecordViewModel(record));
+                }
+
+                SelectedExecutionRecord = ExecutionHistory.FirstOrDefault(r => r.RunId == previousRunId)
+                                         ?? ExecutionHistory.FirstOrDefault();
+
+                OnPropertyChanged(nameof(HasExecutionHistory));
+                OnPropertyChanged(nameof(HasNoExecutionHistory));
+                OnPropertyChanged(nameof(ExecutionLogSummary));
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to read execution log: {ex.Message}";
+            }
+            finally
+            {
+                _isRefreshingExecutionLog = false;
+            }
+        }
+
+        /// <summary>
+        /// Removes every execution older than 30 days from the shared execution log.
+        /// </summary>
+        private void CleanupExecutionLog()
+        {
+            try
+            {
+                int removed = _executionLogStore.Cleanup(ExecutionLogStore.DefaultRetentionDays);
+                RefreshExecutionLog();
+                StatusMessage = removed > 0
+                    ? $"Cleaned {removed} execution log entr{(removed == 1 ? "y" : "ies")} older than {ExecutionLogStore.DefaultRetentionDays} days."
+                    : $"No execution log entries older than {ExecutionLogStore.DefaultRetentionDays} days.";
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Failed to clean the execution log: {ex.Message}";
+            }
+        }
+
+        /// <summary>Opens the folder that contains the execution log file.</summary>
+        private void OpenExecutionLogFolder()
+        {
+            try
+            {
+                string folder = _executionLogStore.LogDirectory;
+                Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"Could not open the execution log folder: {ex.Message}";
+            }
+        }
+
+        /// <summary>Reads the raw content of an execution log entry (safe while another program writes it).</summary>
+        private string BuildExecutionDetail(ExecutionRecordViewModel record)
+        {
+            string content = _executionLogStore.ReadDetail(record.Record);
+            return string.IsNullOrWhiteSpace(content) ? "(no detail available)" : content.TrimEnd();
         }
     }
 }
